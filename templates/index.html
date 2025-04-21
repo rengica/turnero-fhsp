@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Turnero Fundación Hospital San Pedro</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <h1>Turnero Virtual - Fundación Hospital San Pedro</h1>
+
+    <form id="form-turno">
+        <label for="nombre">Nombre:</label>
+        <input type="text" id="nombre" required><br>
+
+        <label for="correo">Correo:</label>
+        <input type="email" id="correo" required><br>
+
+        <label for="especialidad">Especialidad:</label>
+        <select id="especialidad" required>
+            <option value="">Seleccione una especialidad</option>
+            {% for especialidad in especialidades %}
+                <option value="{{ especialidad.id }}">{{ especialidad.nombre }}</option>
+            {% endfor %}
+        </select><br>
+
+        <label for="medico">Médico:</label>
+        <select id="medico" required>
+            <option value="">Seleccione un médico</option>
+        </select><br>
+
+        <label for="fecha">Fecha:</label>
+        <input type="date" id="fecha" required><br>
+
+        <label for="hora">Hora:</label>
+        <select id="hora" required>
+            <option value="">Seleccione una hora</option>
+        </select><br>
+
+        <button type="submit">Reservar Turno</button>
+    </form>
+
+    <div id="mensaje"></div>
+
+    <script>
+        const especialidadSelect = document.getElementById('especialidad');
+        const medicoSelect = document.getElementById('medico');
+        const fechaInput = document.getElementById('fecha');
+        const horaSelect = document.getElementById('hora');
+        const mensaje = document.getElementById('mensaje');
+
+        // Al seleccionar una especialidad, obtener médicos asociados
+        especialidadSelect.addEventListener('change', () => {
+            const id = especialidadSelect.value;
+            fetch(`/medicos/${id}`)
+                .then(res => res.json())
+                .then(data => {
+                    medicoSelect.innerHTML = '<option value="">Seleccione un médico</option>';
+                    data.forEach(medico => {
+                        const option = document.createElement('option');
+                        option.value = medico.id;
+                        option.textContent = medico.nombre;
+                        medicoSelect.appendChild(option);
+                    });
+                });
+        });
+
+        // Cargar horas disponibles al seleccionar fecha o médico
+        fechaInput.addEventListener('change', cargarHorasDisponibles);
+        medicoSelect.addEventListener('change', cargarHorasDisponibles);
+
+        function cargarHorasDisponibles() {
+            const fecha = fechaInput.value;
+            const medicoId = medicoSelect.value;
+
+            if (!fecha || !medicoId) return;
+
+            fetch(`/turnos_ocupados?medico_id=${medicoId}&fecha=${fecha}`)
+                .then(res => res.json())
+                .then(data => {
+                    horaSelect.innerHTML = '<option value="">Seleccione una hora</option>';
+                    const horas = generarHoras();
+                    horas.forEach(hora => {
+                        const option = document.createElement('option');
+                        option.value = hora;
+                        option.textContent = hora;
+                        if (data.includes(hora)) {
+                            option.disabled = true;
+                            option.textContent += ' (ocupado)';
+                        }
+                        horaSelect.appendChild(option);
+                    });
+                });
+        }
+
+        function generarHoras() {
+            const horas = [];
+            let hora = 7;
+            let minutos = 0;
+            while (hora < 12) {
+                const h = `${hora.toString().padStart(2, '0')}:${minutos.toString().padStart(2, '0')}`;
+                horas.push(h);
+                minutos += 10;
+                if (minutos >= 60) {
+                    minutos = 0;
+                    hora++;
+                }
+            }
+            return horas;
+        }
+
+        // Enviar formulario
+        document.getElementById('form-turno').addEventListener('submit', e => {
+            e.preventDefault();
+
+            const datos = {
+                nombre: document.getElementById('nombre').value,
+                correo: document.getElementById('correo').value,
+                fecha: fechaInput.value,
+                hora: horaSelect.value,
+                medico_id: medicoSelect.value
+            };
+
+            fetch('/reservar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(datos)
+            })
+            .then(res => res.json())
+            .then(data => {
+                mensaje.textContent = data.mensaje || data.error;
+                mensaje.style.color = data.error ? 'red' : 'green';
+                cargarHorasDisponibles();
+            });
+        });
+    </script>
+</body>
+</html>
+
